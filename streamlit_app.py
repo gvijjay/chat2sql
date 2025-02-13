@@ -103,6 +103,7 @@ def execute_py_code(code, df):
     finally:
         sys.stdout = sys.__stdout__
 
+
 def execute_py_code1(code, df):
     # Local variables for executing the code
     local_vars = {'df': df}
@@ -116,11 +117,14 @@ def execute_py_code1(code, df):
         # If 'result' exists in local_vars, process it
         if 'result' in local_vars:
             result = local_vars['result']
+            print("-------------------------------")
+            print(result)
         else:
             # Otherwise, capture printed output or last evaluated expression
             output = buffer.getvalue().strip()
             if output:
                 result = output
+                print("result is,,,,,,,,,,,,,,,,", result)
             else:
                 last_line = code.strip().split('\n')[-1]
                 result = eval(last_line, globals(), local_vars)
@@ -135,6 +139,12 @@ def execute_py_code1(code, df):
         elif not isinstance(result, pd.DataFrame):
             raise ValueError("The result is not in a supported format (scalar, list, dict, or DataFrame).")
 
+        # Ensure no thousands separators in numerical columns
+        if isinstance(result, pd.DataFrame):
+            for col in result.select_dtypes(include=['float', 'int']).columns:
+                result[col] = result[col].apply(lambda x: x if pd.isnull(x) else float(x))
+
+        print("result will be..", result)
         return result
 
     except Exception as e:
@@ -190,6 +200,7 @@ def main():
 
                 # Generate visualization code
                 code = generate_code(prompt_eng)
+                print(code)
                 fig = execute_py_code(code, df)
 
                 if isinstance(fig, go.Figure):
@@ -200,6 +211,7 @@ def main():
 
             else:
                 # Text-based prompt
+                print("Else-Condition......")
                 metadata_str = ", ".join(df.columns.tolist())
                 prompt_eng = (
                     f"""
@@ -213,7 +225,7 @@ def main():
                 2. Output Format:
                     - Always assign the final output to a variable named `result` as a pandas `DataFrame`.
                     - Use meaningful column names to represent the result.
-                    - Do not Format numerical outputs with commas as thousands separators for years column (e.g., `2,020` for 2020).
+                    - Do not Format numerical outputs with commas as thousands separators. (e.g., `2,020` for 2020).
                     - Ensure text and non-numeric outputs remain unaltered.
                 
                 3. Scope:
@@ -233,13 +245,20 @@ def main():
 
                 # Generate text-based response
                 code = generate_code(prompt_eng)
+                print(code)
                 result = execute_py_code1(code, df)
+                print("Final Result........",result)
 
                 if "error" in result:
                     st.error(f"Error: {result['error']}")
                 else:
                     st.write("### Query Result")
-                    st.write(result)
+                    display_without_commas(result)
+
+def display_without_commas(result_df):
+    # Format numbers as plain text without commas
+    st.write(result_df.style.format(precision=0, formatter={col: '{:.0f}'.format for col in result_df.select_dtypes(include=['float','int']).columns}))
+
 
 if __name__ == "__main__":
     main()
